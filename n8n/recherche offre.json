@@ -1,0 +1,975 @@
+{
+  "name": "recherche offre",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "triggerAtHour": 13
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -336,
+        224
+      ],
+      "id": "6c8137bc-7230-49ba-b825-2425cfce1ec0",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.STRAPI_URL }}/api/competences?pagination[limit]=100&sort=type_competence:asc,title:asc",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.STRAPI_TOKEN }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        240
+      ],
+      "id": "c9234303-473f-427b-9d01-5ae60d1b6f2c",
+      "name": "récuperation des compétence du portfolio"
+    },
+    {
+      "parameters": {
+        "url": "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "motsCles",
+              "value": "={{ $('Formater liste mots clés a chercher').item.json.keywords }}"
+            },
+            {
+              "name": "commune",
+              "value": "59350"
+            },
+            {
+              "name": "distance",
+              "value": "30"
+            },
+            {
+              "name": "range",
+              "value": "0-49"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        48
+      ],
+      "id": "e6f8a43e-750f-4dff-96c4-d6d43a04029f",
+      "name": "france travail"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://entreprise.francetravail.fr/connexion/oauth2/access_token",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "realm",
+              "value": "/partenaire"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "name": "client_id",
+              "value": "={{ $env.FRANCE_TRAVAIL_CLIENT_ID }}"
+            },
+            {
+              "name": "client_secret",
+              "value": "={{ $env.FRANCE_TRAVAIL_CLIENT_SECRET }}"
+            },
+            {
+              "name": "scope",
+              "value": "api_offresdemploiv2 o2dsoffre"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        320,
+        48
+      ],
+      "id": "0f3cdb52-d40b-4678-a20f-1d22019c6f1e",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst offres = [];\n\nfor (const item of items) {\n  const resultats = item.json.resultats || [];\n  \n  for (const offre of resultats) {\n    offres.push({\n      json: {\n        id_offre: offre.id,\n        titre: offre.intitule,\n        description: offre.description,\n        url: offre.origineOffre?.urlOrigine || null,\n        entreprise: offre.entreprise?.nom || null,\n        localisation: offre.lieuTravail?.libelle || null,\n        date_publication: offre.dateCreation,\n        source: \"France Travail\",\n        contrat: offre.typeContratLibelle || null,\n        salaire: offre.salaire?.libelle || null\n      }\n    });\n  }\n}\n\nreturn offres;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        48
+      ],
+      "id": "fccca2e7-5e07-4447-8911-62b6a2f8d841",
+      "name": "offre nettoyer france travail"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst offres = [];\n\nfor (const item of items) {\n  const resultats = item.json.data || [];\n  \n  for (const offre of resultats) {\n    offres.push({\n      json: {\n        id_offre: offre.job_id,\n        titre: offre.job_title,\n        description: offre.job_description,\n        url: offre.job_apply_link || offre.job_google_link || null,\n        entreprise: offre.employer_name || null,\n        entreprise_site_web: offre.employer_website || null,\n        localisation: offre.job_city || offre.job_location || null,\n        date_publication: offre.job_posted_at_datetime_utc || null,\n        source: offre.job_publisher.toLowerCase() || \"JSearch\",\n        contrat: offre.job_employment_type || null,\n        salaire: offre.job_salary_string || null,\n        remote: offre.job_is_remote || false\n      }\n    });\n  }\n}\n\nreturn offres;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        -160
+      ],
+      "id": "67607e98-ba91-4b27-a8cb-a84843ff9730",
+      "name": "offre nettoyer jsearch"
+    },
+    {
+      "parameters": {
+        "content": "## Jsearch \nAPI qui récupére les offres d'emploi de plusieurs jobboeard (linkedin, indeed, etc ...)\n\n⚠️ **Warning**\n200 Requests / Month",
+        "height": 176
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -352
+      ],
+      "id": "e2fa3be4-2792-47e8-969b-4a13abfa3664",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "model": "deepseek-v4-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        2112,
+        112
+      ],
+      "id": "f976ba37-54cb-4ea7-852e-d4a36067f82a",
+      "name": "DeepSeek Chat Model",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "eOmzVHTAwhqwUD1U",
+          "name": "DeepSeek account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Voici l'offre d'emploi à analyser :\n\nTitre : {{ $('Boucle des offres').first().json.titre }}\nEntreprise : {{ $('Boucle des offres').first().json.entreprise }}\nLocalisation : {{ $('Boucle des offres').first().json.localisation }}\nContrat : {{ $('Boucle des offres').first().json.contrat }}\nSalaire : {{ $('Boucle des offres').first().json.salaire }}\nDescription : {{ $('Boucle des offres').first().json.description }}\n\nVoici mes compétences avec leur niveau :\n{{ $('Boucle des offres').first().json.competences_texte }}\n\nRÈGLES IMPORTANTES\n\n1. Analyse du profil\n\nAnalyse l'offre en fonction de mes compétences fournies, de leur niveau et des missions décrites dans l'annonce. Évalue ma capacité à occuper le poste, et pas uniquement ma maîtrise actuelle de chaque technologie.\n\n2. Exclusion des stages et des alternances\n\nJe recherche un emploi classique et non une formation professionnelle.\n\nToute offre correspondant à l'un des cas suivants doit être considérée comme non pertinente :\n\n- Stage, quel que soit le niveau ou la durée.\n- Alternance, contrat d'apprentissage ou contrat de professionnalisation.\n- Offre dont l'objectif principal est de suivre une formation plutôt que d'occuper un véritable poste.\n- Offre proposée principalement par une école ou un organisme de formation dans le but de recruter des apprenants.\n\nDans ces cas :\n\n- \"score\" doit être égal à 0.\n- \"correspond\" doit être false.\n- \"competences_matchees\", \"competences_manquantes\" et \"competences_a_ameliorer\" doivent être des tableaux vides.\n- \"raison\" doit expliquer brièvement pourquoi l'offre est exclue.\n- \"conseils\" doit être une chaîne vide.\n\nAttention : ne rejette pas une offre simplement parce que l'entreprise propose de la formation interne à ses salariés. Un emploi classique en CDI ou CDD avec accompagnement ou formation reste pertinent.\n\n3. Évaluation souple des compétences\n\nNe sois pas trop strict dans l'évaluation de mon profil.\n\nLe fait de ne pas maîtriser toutes les compétences demandées ne signifie pas que je ne suis pas adapté au poste. Je peux apprendre de nouvelles technologies, méthodes et outils directement en entreprise.\n\nApplique les règles suivantes :\n\n- Privilégie les compétences fondamentales, les connaissances transférables et les expériences pertinentes plutôt que la maîtrise parfaite de chaque technologie citée.\n- Considère qu'une compétence technique manquante peut être apprise en travaillant, surtout si elle est secondaire, courante ou liée à un outil spécifique.\n- Ne pénalise pas fortement l'absence d'une technologie lorsque je possède déjà des compétences similaires ou facilement transférables.\n- Distingue les compétences indispensables dès l'embauche des compétences qui peuvent raisonnablement être acquises après le recrutement.\n- Une liste longue de technologies dans une annonce ne signifie pas que je dois toutes les maîtriser.\n- Prends en compte le potentiel d'apprentissage, sans supposer que je possède déjà des compétences qui ne figurent pas dans mon profil.\n- Ne considère pas automatiquement une compétence absente de mon profil comme un obstacle majeur.\n- Ne rejette pas une candidature uniquement parce que je ne remplis pas 100 % des critères techniques.\n\n4. Évaluation de la pertinence\n\nAttribue un score de 0 à 100 selon l'adéquation globale entre mon profil et le poste.\n\nUtilise les principes suivants :\n\n- 80 à 100 : très bonne correspondance, candidature fortement pertinente.\n- 65 à 79 : bonne correspondance, candidature pertinente malgré quelques lacunes.\n- 50 à 64 : correspondance partielle, candidature potentiellement intéressante si les compétences manquantes peuvent être apprises.\n- 30 à 49 : correspondance faible, plusieurs écarts importants avec le poste.\n- 1 à 29 : correspondance très faible.\n- 0 : offre explicitement exclue, notamment un stage ou une alternance.\n\nNe réduis pas excessivement le score pour des compétences secondaires manquantes. Évalue en priorité les missions principales, les compétences fondamentales et les exigences réellement indispensables.\n\nLe champ \"correspond\" doit être true si le score est supérieur ou égal à 50, sauf pour les offres explicitement exclues, pour lesquelles il doit toujours être false.\n\n5. Gestion des compétences\n\nNe crée pas de compétences qui ne sont pas explicitement nécessaires ou pertinentes pour l'offre.\n\n- \"competences_matchees\" : compétences présentes dans mon profil et pertinentes pour le poste. La note doit correspondre à mon niveau indiqué.\n- \"competences_manquantes\" : compétences demandées dans l'offre mais absentes de mon profil. Indique leur importance réelle pour le poste. N'y ajoute pas toutes les technologies mentionnées par simple exhaustivité.\n- \"competences_a_ameliorer\" : compétences que je possède déjà, mais dont le niveau est insuffisant pour les exigences du poste. N'inclus pas les compétences totalement absentes de mon profil dans cette catégorie.\n- Ne considère pas une compétence comme indispensable uniquement parce qu'elle apparaît dans l'annonce.\n- Évite les doublons entre les trois tableaux.\n\nPour \"importance_dans_offre\", utilise uniquement les valeurs \"haute\", \"moyenne\" ou \"faible\".\n\nPour les compétences manquantes, distingue les exigences réellement bloquantes des outils et technologies qui peuvent être appris après l'embauche.\n\n6. Conseils et justification\n\n- \"raison\" doit expliquer brièvement le score attribué et la pertinence globale de mon profil, en tenant compte des compétences transférables et de ma capacité à apprendre.\n- \"raison\" : maximum 500 caractères.\n- \"conseils\" : maximum 800 caractères.\n- Chaque champ \"conseil\" dans \"competences_a_ameliorer\" doit contenir au maximum 200 caractères.\n- Les conseils doivent être concrets, concis et adaptés au poste.\n- Ne recommande pas de développer toutes les compétences manquantes avant de postuler.\n- Si le profil est suffisamment pertinent, privilégie les conseils pour valoriser les compétences existantes et préparer la candidature.\n\n7. Classification de l'offre\n\nLe champ \"type_offre\" doit contenir une catégorie courte correspondant au métier principal du poste, par exemple :\n\n- \"Développeur IA\"\n- \"Développeur Python\"\n- \"Data Analyst\"\n- \"Data Engineer\"\n- \"Développeur Full Stack\"\n- \"DevOps\"\n- \"Administrateur systèmes\"\n- \"Autre\"\n\nNe confonds pas le type de métier avec le type de contrat.\n\n8. Format et validité\n\n- Réponds uniquement avec du JSON valide, sans texte avant ou après.\n- Respecte exactement les noms des champs définis dans le format.\n- Utilise les valeurs booléennes JSON true et false, sans guillemets.\n- Les tableaux de compétences doivent contenir des objets conformes au format.\n- Si aucune compétence ne correspond à une catégorie, renvoie un tableau vide.\n- N'ajoute aucun champ supplémentaire.\n- N'utilise pas de blocs Markdown ou de commentaires dans le JSON.\n\nFORMAT DE RÉPONSE\n\n{\n\"score\": 85,\n\"correspond\": true,\n\"competences_matchees\": [\n{\n\"titre\": \"Python\",\n\"note\": 3,\n\"importance_dans_offre\": \"haute\"\n}\n],\n\"competences_manquantes\": [\n{\n\"titre\": \"Kubernetes\",\n\"importance_dans_offre\": \"moyenne\"\n}\n],\n\"competences_a_ameliorer\": [\n{\n\"titre\": \"Docker\",\n\"note_actuelle\": 1,\n\"importance_dans_offre\": \"haute\",\n\"conseil\": \"Renforcer Docker avec des projets utilisant Docker Compose et des déploiements simples.\"\n}\n],\n\"raison\": \"Bonne correspondance globale. Les compétences principales sont présentes et les lacunes concernent des outils qui peuvent être appris en entreprise.\",\n\"conseils\": \"Mettre en avant les projets Python et Docker réalisés. Valoriser les compétences transférables et la capacité à apprendre rapidement.\",\n\"type_offre\": \"Développeur IA\"\n}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Tu es un expert RH et recruteur technique français.  Tu analyses des offres d'emploi et tu les compares avec les compétences d'un candidat. Les compétences ont une note de 1 à 3 : - 1 = pas à l'aise avec la compétence - 2 = compétence correcte - 3 = très à l'aise avec la compétence Tu réponds UNIQUEMENT en JSON valide sans texte autour, sans balises markdown, sans backticks."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        2112,
+        -128
+      ],
+      "id": "6146fe1c-85eb-46f4-83be-2d2f891cf1fd",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst competences = items[0].json.data.map(comp => {\n  return {\n    json: {\n      type_competence: comp.type_competence,\n      title: comp.title,\n      note: comp.note\n    }\n  };\n});\n\nreturn competences;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        240
+      ],
+      "id": "d4c71633-0106-4ea1-80d2-389620028b16",
+      "name": "nettoyage des competences"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst competences_texte = items.map(c => \n  `- ${c.json.title} (${c.json.type_competence}) : note ${c.json.note}/3`\n).join('\\n');\n\nreturn [{ \n  json: { \n    competences_texte: competences_texte \n  } \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        240
+      ],
+      "id": "f16fae98-a120-4dd2-a6c5-269162b13c57",
+      "name": "Formater compétences"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        992,
+        48
+      ],
+      "id": "76d4190e-2d65-4239-a476-a99b6f98dffd",
+      "name": "Merge offre"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.first().json.text;\nconst offre = $('Boucle des offres').first().json;\n\n// Nettoyer au cas où il y a des backticks\nconst cleaned = text\n  .replace(/```json/g, '')\n  .replace(/```/g, '')\n  .trim();\n\nconst parsed = JSON.parse(cleaned);\n\nreturn [{\n  json: {\n    id_offre: offre.id_offre || \"\",\n    titre: offre.titre || \"Non renseigné\",\n    entreprise: offre.entreprise || \"Non renseigné\",\n    localisation: offre.localisation || \"Non renseigné\",\n    contrat: offre.contrat || \"Non renseigné\",\n    salaire: offre.salaire || \"Non renseigné\",\n    source: offre.source || \"Non renseigné\",\n    url: offre.url || \"\",\n    score: parsed.score || 0,\n    correspond: parsed.correspond || false,\n    competences_matchees: JSON.stringify(parsed.competences_matchees) || \"\",\n    competences_manquantes: JSON.stringify(parsed.competences_manquantes) || \"\",\n    competences_a_ameliorer: JSON.stringify(parsed.competences_a_ameliorer) || \"\",\n    raison: parsed.raison || \"\",\n    conseils: parsed.conseils || \"\",\n    type_offre: parsed.type_offre\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        -128
+      ],
+      "id": "bb377d55-3e0d-4285-a5f7-e284ee636852",
+      "name": "parser la reponse LLM"
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=✅ Workflow Job Matching terminé !\n\n📊 Résultats :\n- Offres analysées : {{ $json.total_offres }}\n- Date : {{ $now.format('dd/MM/yyyy HH:mm') }}\n\n🔍 Vérifie ta database Notion pour voir les nouvelles offres :\n\n{{ $env.NOTION_BDD_URL }}\n\nou vérifie sur la page web des offres :\n\n{{ $env.JOB_SEARCH_URL }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1888,
+        -480
+      ],
+      "id": "316b6cc3-1de5-40e9-923c-fbd1beca6074",
+      "name": "Discord",
+      "webhookId": "d77c7868-8dac-4890-9399-204d7d889f57",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "ja7Oc1OUSZHs3apo",
+          "name": "Discord Webhook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst total_offres = items.length;\n\nreturn [{\n  json: {\n    total_offres: total_offres\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        -480
+      ],
+      "id": "73c013e5-5612-4485-9b3f-58005e6ecaab",
+      "name": "Variable pour le message"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1440,
+        -192
+      ],
+      "id": "1266fc73-315b-4272-91f1-a46af1f8b44d",
+      "name": "Boucle des offres",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "234f2183-c19f-42dc-afc2-37ca291d5a07",
+              "leftValue": "={{ $input.first().json.isEmpty() }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "0ae83662-852f-4101-b3b0-88a56adf0997",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1888,
+        -112
+      ],
+      "id": "09f04541-6605-4f4f-bf94-a5afb0677d3d",
+      "name": "si offre existe pas dans la bdd"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "376924c8-f228-8066-89e8-fed73363f912",
+          "mode": "list",
+          "cachedResultName": "Offres d’emploi",
+          "cachedResultUrl": "https://app.notion.com/p/376924c8f228806689e8fed73363f912"
+        },
+        "limit": 1,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "key": "Entreprise|rich_text",
+              "condition": "equals",
+              "richTextValue": "={{ $json.entreprise }}"
+            },
+            {
+              "key": "Titre|title",
+              "condition": "equals",
+              "titleValue": "={{ $json.titre }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1664,
+        -112
+      ],
+      "id": "ea8354cf-91d8-4bf5-bd15-6e9b99b7190f",
+      "name": "verif l'offre dans la bdd",
+      "alwaysOutputData": true,
+      "credentials": {
+        "notionApi": {
+          "id": "DZSLFhZlU83LDyJJ",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1216,
+        144
+      ],
+      "id": "699c0e1d-0728-4530-be5f-40cbb9987aff",
+      "name": "Merge offre + competences"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.STRAPI_URL }}/api/recherche-emplois",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.STRAPI_TOKEN }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -128,
+        48
+      ],
+      "id": "a7e72957-6539-4df1-b0cb-ca4c6d552e48",
+      "name": "récuperation liste des mots clés a chercher"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst liste = items[0].json.data.map(comp => {\n  return {\n    json: {\n      keywords: comp.intituler,\n      ville: comp.ville\n    }\n  };\n});\n\nreturn liste;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        48
+      ],
+      "id": "3c1e7af4-4ce3-43d5-aab6-3a5b622ce43c",
+      "name": "Formater liste mots clés a chercher"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "376924c8-f228-8066-89e8-fed73363f912",
+          "mode": "list",
+          "cachedResultName": "Offres d’emploi",
+          "cachedResultUrl": "https://app.notion.com/p/376924c8f228806689e8fed73363f912"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Titre|title",
+              "title": "={{ $json.titre }}"
+            },
+            {
+              "key": "id_offre|rich_text",
+              "textContent": "={{ $json.id_offre }}"
+            },
+            {
+              "key": "Entreprise|rich_text",
+              "textContent": "={{ $json.entreprise }}"
+            },
+            {
+              "key": "Localisation|rich_text",
+              "textContent": "={{ $json.localisation }}"
+            },
+            {
+              "key": "Contrat|select",
+              "selectValue": "={{ $json.contrat }}"
+            },
+            {
+              "key": "Salaire|rich_text",
+              "textContent": "={{ $json.salaire }}"
+            },
+            {
+              "key": "Source|select",
+              "selectValue": "={{ $json.source }}"
+            },
+            {
+              "key": "URL|url",
+              "urlValue": "={{ $json.url }}"
+            },
+            {
+              "key": "Score|number",
+              "numberValue": "={{ $json.score }}"
+            },
+            {
+              "key": "Raison|rich_text",
+              "textContent": "={{ $json.raison.toString() }}"
+            },
+            {
+              "key": "Conseils|rich_text",
+              "textContent": "={{ $json.conseils.toString() }}"
+            },
+            {
+              "key": "Date_detection|date",
+              "date": "={{ $now }}",
+              "timezone": "Europe/Paris"
+            },
+            {
+              "key": "Statut|select",
+              "selectValue": "Nouveau"
+            },
+            {
+              "key": "Competences_a_ameliorer|rich_text",
+              "textContent": "={{ $json.competences_a_ameliorer.toString() }}"
+            },
+            {
+              "key": "Competences_manquantes|rich_text",
+              "textContent": "={{ $json.competences_manquantes.toString() }}"
+            },
+            {
+              "key": "Competences_matchees|rich_text",
+              "textContent": "={{ $json.competences_matchees.toString() }}"
+            },
+            {
+              "key": "Type_offre|rich_text",
+              "textContent": "={{ $json.type_offre.toString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        2976,
+        80
+      ],
+      "id": "064d681e-c06d-4319-aa2f-174bbe5d92e3",
+      "name": "Sauvegarde en BDD",
+      "credentials": {
+        "notionApi": {
+          "id": "DZSLFhZlU83LDyJJ",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "234f2183-c19f-42dc-afc2-37ca291d5a07",
+              "leftValue": "={{ $json.score }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2688,
+        -128
+      ],
+      "id": "c2d31843-4437-4c37-b6ae-76cfc1043f93",
+      "name": "verif si score > 0"
+    },
+    {
+      "parameters": {
+        "url": "https://jsearch.p.rapidapi.com/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $('Formater liste mots clés a chercher').item.json.keywords }}"
+            },
+            {
+              "name": "location",
+              "value": "={{ $('Formater liste mots clés a chercher').item.json.ville }}"
+            },
+            {
+              "name": "page",
+              "value": "1"
+            },
+            {
+              "name": "num_pages",
+              "value": "1"
+            },
+            {
+              "name": "country",
+              "value": "fr"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-RapidAPI-Host",
+              "value": "jsearch.p.rapidapi.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -160
+      ],
+      "id": "57dd38f0-9105-4c4c-949b-268bcdb440e7",
+      "name": "JSearch",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "BGKl4fcrN8O4s8ng",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "score 0 = offre explicitement exclue, notamment un stage ou une alternance.",
+        "height": 80,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2624,
+        -208
+      ],
+      "typeVersion": 1,
+      "id": "9720542d-a5fd-4184-829c-a798054b0eed",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## verification de l'offre\n\nverifie  l'offre dans la bdd via:\n- l'entreprise\n- le titre\n\n**⚠️ pas avec l'id de l'offre pour la même offre l'id change**\n",
+        "height": 192,
+        "width": 352
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1664,
+        -320
+      ],
+      "typeVersion": 1,
+      "id": "20f8a81b-f62a-48f8-b12f-caa2a71a6c11",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "récuperation des compétence du portfolio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "récuperation liste des mots clés a chercher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "récuperation des compétence du portfolio": {
+      "main": [
+        [
+          {
+            "node": "nettoyage des competences",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "france travail": {
+      "main": [
+        [
+          {
+            "node": "offre nettoyer france travail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "france travail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "offre nettoyer france travail": {
+      "main": [
+        [
+          {
+            "node": "Merge offre",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "offre nettoyer jsearch": {
+      "main": [
+        [
+          {
+            "node": "Merge offre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "nettoyage des competences": {
+      "main": [
+        [
+          {
+            "node": "Formater compétences",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "parser la reponse LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater compétences": {
+      "main": [
+        [
+          {
+            "node": "Merge offre + competences",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge offre": {
+      "main": [
+        [
+          {
+            "node": "Merge offre + competences",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parser la reponse LLM": {
+      "main": [
+        [
+          {
+            "node": "verif si score > 0",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Variable pour le message": {
+      "main": [
+        [
+          {
+            "node": "Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Boucle des offres": {
+      "main": [
+        [
+          {
+            "node": "Variable pour le message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "verif l'offre dans la bdd",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "si offre existe pas dans la bdd": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Boucle des offres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "verif l'offre dans la bdd": {
+      "main": [
+        [
+          {
+            "node": "si offre existe pas dans la bdd",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge offre + competences": {
+      "main": [
+        [
+          {
+            "node": "Boucle des offres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater liste mots clés a chercher": {
+      "main": [
+        [
+          {
+            "node": "JSearch",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "récuperation liste des mots clés a chercher": {
+      "main": [
+        [
+          {
+            "node": "Formater liste mots clés a chercher",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sauvegarde en BDD": {
+      "main": [
+        [
+          {
+            "node": "Boucle des offres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "verif si score > 0": {
+      "main": [
+        [
+          {
+            "node": "Sauvegarde en BDD",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Boucle des offres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSearch": {
+      "main": [
+        [
+          {
+            "node": "offre nettoyer jsearch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "159c0aa2-f5d8-47c2-b87b-330c16869949",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d7a37b9bec21752f12f07b7e707eaa1072f8f8a7b1b911394493303958c23b86"
+  },
+  "id": "V9S0GcXC95VKV4Yp",
+  "tags": []
+}
